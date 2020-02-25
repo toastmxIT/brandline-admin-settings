@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  brandline-site-settings-api.
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 300
+
+Parameters:
+  EnvStageName:
+    Default: dev
+    Description: The Environment name (e.g. dev, prod, etc.)
+    Type: String
+  Region:
+      Default: us-west-2
+      Description: The region to deploy the managed services
+      Type: String
+  ACLManagementLambdaStackName:
+    Default: brandline-acl-management
+    Description: The name of the stack that contains the Lamdba functions responsible for ACL Management
+    Type: String
+  ACLManagementLambdaName:
+    Default: ManageACLUsers
+    Description: The name of the Lamdba responsible for ACL Management
+    Type: String
+  DatabaseLambdaStackName:
+    Default: brandline-database-helper
+    Description: The name of the stack that contains the Lambda functions responsible for DB connection
+    Type: String
+  DatabaseLambdaName:
+    Default: DBHelper
+    Description: The name of the lambda responsible for make DB executions
+    Type: String
+  AccessKeyId:
+    Default: AKIATJ5QTG2TSI7BIJY3
+    Description: Access Key ID
+    Type: String
+  SecretAccessKey:
+    Default: No9GpDKkt4PY+WthLZKooZDXQ0EUbXH9kCOPOpbz
+    Description: Secret Access Key
+    Type: String
+
+Mappings:
+  cognito:
+    dev:
+      auth: arn:aws:cognito-idp:us-west-2:227466753703:userpool/us-west-2_aZdPO4xSA
+
+Resources:
+  SiteSettingsAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref EnvStageName
+      OpenApiVersion: 3.0.1
+      GatewayResponses:
+        #x-amazon-apigateway-gateway-responses:
+        DEFAULT_4XX:
+          StatusCode: 405
+          ResponseTemplates:
+            "application/json": '{ "message": "Method Not Allowed" }'
+      Auth:
+        Authorizers:
+          BLCognitoAuth:
+            UserPoolArn: !FindInMap [cognito, !Ref EnvStageName, auth]
+  #GateWayResponseMissingAuthToken:
+    #Type: 'AWS::ApiGateway::GatewayResponse'
+    #Properties:
+      #ResponseParameters:
+        #gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        #gatewayresponse.header.Access-Control-Allow-Methods: "'GET'"
+      #ResponseType: UNAUTHORIZED
+      #ResponseTemplates:
+        #"application/json": "{ \"message\": \"Missing cognito authentication token\" }"
+      #RestApiId: !Ref SiteSettingsAPI
+
+
+  SiteSettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: settings
+      Handler: app.lambda_handler
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-SiteSettings-${EnvStageName}
+      Events:
+        GetSiteSettingsInfoEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SiteSettingsAPI
+            Path: /site-settings
+            Method: get
+            Auth:
+              Authorizer: BLCognitoAuth
+
+      Runtime: python3.7
+      MemorySize: 128
+      Environment:
+        Variables:
+          REGION: !Ref Region
+          LAMBDA_ENV: !Ref EnvStageName
+          ACL_MANAGEMENT_STACK: !Ref ACLManagementLambdaStackName
+          ACL_MANAGEMENT_LAMBDA: !Ref ACLManagementLambdaName
+          DB_STACK: !Ref DatabaseLambdaStackName
+          DB_LAMBDA: !Ref DatabaseLambdaName
+          USER_ACCESS: !Ref AccessKeyId
+          USER_SECRET: !Ref SecretAccessKey
+      Tags:
+        Function: !Sub "${AWS::StackName}-SiteSettings-${EnvStageName}"

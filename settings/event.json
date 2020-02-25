@@ -1,0 +1,6 @@
+{
+  "queryStringParameters": {
+    "email": "pedro.orellana.manzano@gmail.com",
+    "permission": "admin.view"
+  }
+}
