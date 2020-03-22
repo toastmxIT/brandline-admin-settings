@@ -59,7 +59,6 @@ def get_enviroment_var(key, default=None):
     return os.environ[key] if key in os.environ.keys() else default
 
 
-
 def bad_request(errors=None, invoke_from_http=True):
     message = {'message': 'Bad request'} if not errors else errors
     return build_response(err=message,

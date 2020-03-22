@@ -1,16 +1,10 @@
 import json
 from cerberus import Validator
 from schemas import GET_ADMIN_SETTINGS_URL_SCHEMA
-from utils import get_body_or_bad_request, bad_request, ok, get_enviroment_var, internal_server_error, forbidden, get_cognito_email
-from boto3 import client as boto3_client
-
-ACL_MANAGEMENT_LAMBDA = '-'.join(
-    [get_enviroment_var(pa) for pa in ['ACL_MANAGEMENT_STACK', 'ACL_MANAGEMENT_LAMBDA', 'LAMBDA_ENV']]
-)
-
-DB_LAMBDA = '-'.join(
-    [get_enviroment_var(pa) for pa in ['DB_STACK', 'DB_LAMBDA', 'LAMBDA_ENV']]
-)
+from utils import bad_request, ok, get_enviroment_var, internal_server_error, forbidden, get_cognito_email
+from db import lambda_handler as db_handler
+from acl import lambda_handler as acl_handler
+from http import HTTPStatus
 
 ADMIN_SETTINGS_URL_VALIDATOR = Validator(GET_ADMIN_SETTINGS_URL_SCHEMA)
 
@@ -40,17 +34,9 @@ def get_site_settings_values():
         }
     }
 
-    invoke_response = boto3_client('lambda',
-                                   aws_access_key_id=get_enviroment_var('USER_ACCESS'),
-                                   aws_secret_access_key=get_enviroment_var('USER_SECRET')).invoke(
-        FunctionName=DB_LAMBDA,
-        InvocationType='RequestResponse',
-        Payload=json.dumps(msg)
-    )
+    response = db_handler(msg)
 
-    response = json.loads(invoke_response['Payload'].read())
-
-    if response['status_code'] == 200:
+    if response['statusCode'] == 200:
         body = json.loads(response['body'])
         body = json.loads(body[0])
         return ok(body[0])
@@ -72,17 +58,13 @@ def get_user_id_by_email(email):
         }
     }
 
-    invoke_response = boto3_client('lambda',
-                                   aws_access_key_id=get_enviroment_var('USER_ACCESS'),
-                                   aws_secret_access_key=get_enviroment_var('USER_SECRET')).invoke(
-        FunctionName=DB_LAMBDA,
-        InvocationType='RequestResponse',
-        Payload=json.dumps(msg)
-    )
+    print(msg)
 
-    response = json.loads(invoke_response['Payload'].read())
+    response = db_handler(msg)
+    print(type(response))
+    print(response)
 
-    if response['status_code'] == 200:
+    if response['statusCode'] == HTTPStatus.OK:
         body = json.loads(response['body'])
         body = json.loads(body[0])
         return body[0]['id']
@@ -99,17 +81,11 @@ def get_current_user_permission(user_id, permission):
         }
     }
 
-    invoke_response = boto3_client('lambda',
-                                   aws_access_key_id=get_enviroment_var('USER_ACCESS'),
-                                   aws_secret_access_key=get_enviroment_var('USER_SECRET')).invoke(
-        FunctionName=ACL_MANAGEMENT_LAMBDA,
-        InvocationType='RequestResponse',
-        Payload=json.dumps(msg)
-    )
+    response = acl_handler(msg)
 
-    response = json.loads(invoke_response['Payload'].read())
+    print(response)
 
-    if response['status_code'] == 200:
+    if response['statusCode'] == HTTPStatus.OK:
         return response['body']
     else:
         return None
@@ -129,11 +105,15 @@ def lambda_handler(event, context):
             print(email)
             user_id = get_user_id_by_email(email)
 
+            print(user_id)
+
             if not user_id:
-                return internal_server_error()
+                return forbidden()
 
             # get the permission of the user
             user_permission = json.loads(get_current_user_permission(user_id, query_string['permission']))
+
+            print(user_permission)
 
             if user_permission['authorized'] == 'True':
                 # if yes, then get data
