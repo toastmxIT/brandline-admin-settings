@@ -1,11 +1,6 @@
-import traceback
-
-try:
-    from utils import bad_request, get_cognito_email, forbidden, get_user_id_by_email, ok
-    from methods.get_settings import get_settings_from_event
-    from methods.patch_settings import patch_settings_from_event
-except Exception:
-    print(traceback.format_exc())
+from utils import bad_request, get_cognito_email, forbidden, get_user_id_by_email
+from methods.get_settings import get_settings_from_event
+from methods.patch_settings import patch_settings_from_event
 
 
 def lambda_handler(event, context):
@@ -32,3 +27,5 @@ def lambda_handler(event, context):
         return get_settings_from_event(query_string, user_id)
     elif event['httpMethod'] == 'PATCH':
         return patch_settings_from_event(event=event, query_string=query_string, user_id=user_id, email=email)
+
+    return bad_request({'message': 'Bad request'})

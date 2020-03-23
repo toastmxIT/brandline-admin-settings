@@ -31,8 +31,8 @@ def get_permissions_by_user_id(user_id):
     if method == 'ok':
         print(response)
         return response[0]
-    else:
-        return None
+
+    return None
 
 
 def get_role_name_by_user_id(user_id):
@@ -57,6 +57,8 @@ def lambda_handler(event):
         return 'bad_request', {
             'message': 'Body does not contain a valid action. Valid actions are: ' + ','.join(ALLOWED_ACTIONS)}
 
+    error, msg = 'bad_request', {'message': 'Bad Request'}
+
     if body["action"] == 'check-user-permissions':
         if ACL_MANAGEMENT_VALIDATOR.validate(body):
             # get the permission of the user
@@ -64,8 +66,12 @@ def lambda_handler(event):
             if body["permission"] in user_permission:
 
                 return 'ok', {'authorized': 'True'}
-            else:
-                # else, return bad request
-                return 'forbidden', {}
+
+            # else, return bad request
+            return 'forbidden', {}
         else:
-            return 'bad_request', ACL_MANAGEMENT_VALIDATOR.errors
+            error, msg = 'bad_request', ACL_MANAGEMENT_VALIDATOR.errors
+    else:
+        error, msg = 'bad_request', {'message': 'Bad request'}
+
+    return error, msg

@@ -1,4 +1,5 @@
 import ast
+import os
 import json
 from http import HTTPStatus
 
@@ -46,8 +47,10 @@ def internal_server_error(invoke_from_http=True):
 
 
 def forbidden(err=None, invoke_from_http=True):
+    if not err:
+        err = {'message': 'User does not have privileges to perform this action'}
     return build_response(
-        err={'message': 'User does not have privileges to perform this action'},
+        err=err,
         status_code=HTTPStatus.FORBIDDEN,
         invoke_from_http=invoke_from_http
     )
@@ -115,8 +118,8 @@ def get_user_id_by_email(email):
         body = ast.literal_eval(response[0])
         print(body)
         return body[0]['id']
-    else:
-        return None
+
+    return None
 
 
 def get_current_user_permission(user_id, permission):
@@ -134,5 +137,5 @@ def get_current_user_permission(user_id, permission):
 
     if method == 'ok':
         return response
-    else:
-        return None
+
+    return None
