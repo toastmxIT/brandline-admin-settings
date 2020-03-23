@@ -1,8 +1,7 @@
-import json
 from cerberus import Validator
-from schemas import ACL_MANAGEMENT_SCHEMA
-from utils import bad_request, get_enviroment_var, ok, forbidden
+
 from db import lambda_handler as db_handler
+from schemas import ACL_MANAGEMENT_SCHEMA
 
 ACL_MANAGEMENT_VALIDATOR = Validator(ACL_MANAGEMENT_SCHEMA)
 
@@ -27,11 +26,11 @@ def get_permissions_by_user_id(user_id):
         }
     }
 
-    response = db_handler(msg)
+    method, response = db_handler(msg)
 
-    if response['statusCode'] == 200:
-        body = json.loads(response['body'])
-        return body[0]
+    if method == 'ok':
+        print(response)
+        return response[0]
     else:
         return None
 
@@ -49,13 +48,14 @@ def lambda_handler(event):
     body = event["body"] if event["body"] else None
 
     if not body:
-        return bad_request({'message': 'Event request does not contain body object'})
+        return 'bad_request', {'message': 'Event request does not contain body object'}
 
     if 'action' not in body:
-        return bad_request({'message': 'Body does not contain \'action\' key'})
+        return 'bad_request', {'message': 'Body does not contain \'action\' key'}
 
     if body["action"] not in ALLOWED_ACTIONS:
-        return bad_request({'message': 'Body does not contain a valid action. Valid actions are: ' + ','.join(ALLOWED_ACTIONS)})
+        return 'bad_request', {
+            'message': 'Body does not contain a valid action. Valid actions are: ' + ','.join(ALLOWED_ACTIONS)}
 
     if body["action"] == 'check-user-permissions':
         if ACL_MANAGEMENT_VALIDATOR.validate(body):
@@ -63,9 +63,9 @@ def lambda_handler(event):
             user_permission = get_permissions_by_user_id(body["user_id"])
             if body["permission"] in user_permission:
 
-                return ok({'authorized': 'True'})
+                return 'ok', {'authorized': 'True'}
             else:
                 # else, return bad request
-                return forbidden()
+                return 'forbidden', {}
         else:
-            return bad_request(ACL_MANAGEMENT_VALIDATOR.errors)
+            return 'bad_request', ACL_MANAGEMENT_VALIDATOR.errors

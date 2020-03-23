@@ -1,6 +1,21 @@
+import ast
 import json
 from http import HTTPStatus
-import os
+
+from acl import lambda_handler as acl_handler
+from db import lambda_handler as db_handler
+
+
+def ok(data, invoke_from_http=True):
+    return build_response(res=data, status_code=HTTPStatus.OK,
+                          invoke_from_http=invoke_from_http)
+
+
+def bad_request(errors=None, invoke_from_http=True):
+    message = {'message': 'Bad request'} if not errors else errors
+    return build_response(err=message,
+                          status_code=HTTPStatus.BAD_REQUEST,
+                          invoke_from_http=invoke_from_http)
 
 
 def build_response(err=None, res=None, status_code=HTTPStatus.OK, invoke_from_http=True):
@@ -30,17 +45,12 @@ def internal_server_error(invoke_from_http=True):
     )
 
 
-def forbidden(invoke_from_http=True):
+def forbidden(err=None, invoke_from_http=True):
     return build_response(
         err={'message': 'User does not have privileges to perform this action'},
         status_code=HTTPStatus.FORBIDDEN,
         invoke_from_http=invoke_from_http
     )
-
-
-def ok(data, invoke_from_http=True):
-    return build_response(res=data, status_code=HTTPStatus.OK,
-                          invoke_from_http=invoke_from_http)
 
 
 def get_cognito_email(event):
@@ -57,13 +67,6 @@ def get_cognito_email(event):
 
 def get_enviroment_var(key, default=None):
     return os.environ[key] if key in os.environ.keys() else default
-
-
-def bad_request(errors=None, invoke_from_http=True):
-    message = {'message': 'Bad request'} if not errors else errors
-    return build_response(err=message,
-                          status_code=HTTPStatus.BAD_REQUEST,
-                          invoke_from_http=invoke_from_http)
 
 
 def get_body_or_bad_request(event):
@@ -86,3 +89,50 @@ def get_body_or_bad_request(event):
         response['error'] = True
         response['response'] = bad_request(error)
         return response
+
+
+def get_user_id_by_email(email):
+    sql = f'''
+        select u.id
+        from users.users as u
+        where u.email = '{email}'
+    '''
+
+    msg = {
+        'body': {
+            'action': 'run',
+            'queries': [sql]
+        }
+    }
+
+    print(msg)
+
+    method, response = db_handler(msg)
+    print(type(response))
+    print(response)
+
+    if method == 'ok':
+        body = ast.literal_eval(response[0])
+        print(body)
+        return body[0]['id']
+    else:
+        return None
+
+
+def get_current_user_permission(user_id, permission):
+    msg = {
+        'body': {
+            'action': 'check-user-permissions',
+            'user_id': user_id,
+            'permission': permission
+        }
+    }
+
+    method, response = acl_handler(msg)
+
+    print(response)
+
+    if method == 'ok':
+        return response
+    else:
+        return None

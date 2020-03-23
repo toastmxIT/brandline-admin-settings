@@ -1,11 +1,12 @@
-import sys
 import json
+import sys
+
 import psycopg2
+from cerberus import Validator
 from psycopg2 import OperationalError
 from psycopg2.extras import RealDictCursor
-from cerberus import Validator
+
 from schemas import RUN_QUERY_SCHEMA
-from utils import ok, bad_request
 
 rds_host = 'brandline.con1rcg8el6v.us-west-2.rds.amazonaws.com'
 name = 'masterDB'
@@ -22,21 +23,22 @@ def lambda_handler(event):
     body = event["body"] if event["body"] else None
 
     if not body:
-        return bad_request({'message': 'Event request does not contain body object'})
+        return 'bad_request', {'message': 'Event request does not contain body object'}
 
     if 'action' not in body:
-        return bad_request({'message': 'Body does not contain \'action\' key'})
+        return 'bad_request', {'message': 'Body does not contain \'action\' key'}
 
     if body["action"] not in ALLOWED_ACTIONS:
-        return bad_request({'message': 'Body does not contain a valid action. Valid actions are: ' + ','.join(ALLOWED_ACTIONS)})
+        return 'bad_request', {
+            'message': 'Body does not contain a valid action. Valid actions are: ' + ','.join(ALLOWED_ACTIONS)}
 
     if body["action"] == 'run':
         if RUN_QUERY_VALIDATOR.validate(body):
             queries = body['queries']
             response = execute_queries(queries)
-            return response
+            return 'ok', response
         else:
-            return bad_request(RUN_QUERY_VALIDATOR.errors)
+            return 'bad_request', RUN_QUERY_VALIDATOR.errors
 
 
 def execute_queries(queries):
@@ -55,8 +57,9 @@ def execute_queries(queries):
                 result.append(json.dumps(rows, indent=2))
             except Exception as e:
                 print(e)
+    conn.commit()
     conn.close()
-    return ok(result)
+    return result
 
 
 def dbconnect():
